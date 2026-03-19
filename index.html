@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GBP Autopilot</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080b12;--surface:#0f1420;--surface2:#161c2e;--surface3:#1e253d;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --green:#3ddc84;--cyan:#22d3ee;--amber:#fbbf24;--red:#f87171;
+  --text:#e2e8f6;--dim:#7a87a0;--dimmer:#4a5568;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex}
+
+/* Sidebar */
+.sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0;position:fixed;height:100vh;z-index:10}
+.sidebar-logo{padding:24px 20px 20px;border-bottom:1px solid var(--border)}
+.sidebar-logo h1{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--green);letter-spacing:.04em}
+.sidebar-logo small{font-size:11px;color:var(--dim)}
+.sidebar-status{padding:12px 16px;margin:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--dimmer);display:inline-block;margin-right:8px;flex-shrink:0}
+.status-dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.status-dot.warn{background:var(--amber)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-row{display:flex;align-items:center;font-size:12px;font-weight:500}
+.status-label{color:var(--dim);font-size:11px;margin-top:4px;padding-left:16px}
+
+nav{padding:8px 12px;flex:1;overflow-y:auto}
+.nav-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--dimmer);padding:14px 8px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;color:var(--dim);transition:all .2s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:linear-gradient(135deg,rgba(61,220,132,.15),rgba(34,211,238,.08));color:var(--green);border:1px solid rgba(61,220,132,.2)}
+.nav-icon{font-size:15px;width:20px;text-align:center}
+
+.sidebar-bottom{padding:14px;border-top:1px solid var(--border)}
+.user-chip{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:10px;font-size:12px}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#080b12;flex-shrink:0}
+.user-info{flex:1;min-width:0}
+.user-name{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-email{color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.disconnect-btn{background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:6px;transition:all .2s}
+.disconnect-btn:hover{color:var(--red);background:rgba(248,113,113,.1)}
+
+/* Main */
+main{margin-left:220px;flex:1;padding:32px;max-width:1100px}
+.page{display:none}.page.active{display:block}
+
+/* Dashboard header */
+.page-header{margin-bottom:28px}
+.page-header h2{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:6px}
+.page-header p{color:var(--dim);font-size:14px}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.stat-val{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;line-height:1;margin-bottom:4px}
+.stat-val.green{color:var(--green)}
+.stat-val.cyan{color:var(--cyan)}
+.stat-val.amber{color:var(--amber)}
+.stat-val.red{color:var(--red)}
+.stat-label{font-size:12px;color:var(--dim);font-weight:500}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.card-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700}
+.card-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em}
+.badge-green{background:rgba(61,220,132,.12);color:var(--green)}
+.badge-amber{background:rgba(251,191,36,.12);color:var(--amber)}
+.badge-cyan{background:rgba(34,211,238,.12);color:var(--cyan)}
+
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-full{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:500;color:#b0bdd4}
+input,textarea,select{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;width:100%;outline:none;transition:border-color .2s}
+input:focus,textarea:focus,select:focus{border-color:var(--green)}
+select{cursor:pointer;color-scheme:dark}
+textarea{resize:vertical;min-height:100px}
+.form-hint{font-size:11px;color:var(--dim);margin-top:4px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s;text-decoration:none}
+.btn-primary{background:linear-gradient(135deg,var(--green),var(--cyan));color:#080b12}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(61,220,132,.25)}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border2);color:var(--text)}
+.btn-secondary:hover{border-color:var(--green);color:var(--green)}
+.btn-danger{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:var(--red)}
+.btn-danger:hover{background:rgba(248,113,113,.2)}
+.btn-amber{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);color:var(--amber)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+
+/* Toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px}
+.toggle-info strong{font-size:14px;color:var(--text);display:block;margin-bottom:2px}
+.toggle-info small{font-size:12px;color:var(--dim)}
+.toggle{width:42px;height:24px;background:var(--surface3);border-radius:12px;border:none;cursor:pointer;padding:0;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--green)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;background:white;border-radius:50%;transition:transform .2s}
+.toggle.on::after{transform:translateX(18px)}
+
+/* Post cards */
+.post-list{display:flex;flex-direction:column;gap:12px}
+.post-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;transition:border-color .2s}
+.post-card:hover{border-color:var(--border2)}
+.post-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.post-card-title{font-weight:600;font-size:14px;line-height:1.3;flex:1}
+.post-status{font-size:11px;font-weight:700;padding:2px 10px;border-radius:20px;text-transform:uppercase;flex-shrink:0}
+.status-posted{background:rgba(61,220,132,.12);color:var(--green)}
+.status-pending{background:rgba(251,191,36,.1);color:var(--amber)}
+.status-failed{background:rgba(248,113,113,.1);color:var(--red)}
+.post-body-preview{font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.post-meta{display:flex;gap:16px;font-size:11px;color:var(--dimmer)}
+.post-meta span{display:flex;align-items:center;gap:4px}
+.kw-chip{display:inline-block;background:rgba(34,211,238,.1);color:var(--cyan);font-size:10px;padding:1px 8px;border-radius:10px;font-weight:500}
+
+/* Keywords */
+.kw-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.kw-tag{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px}
+.kw-count{font-size:10px;background:rgba(34,211,238,.15);color:var(--cyan);padding:1px 7px;border-radius:10px;font-weight:600}
+.kw-remove{background:none;border:none;color:var(--dimmer);cursor:pointer;font-size:14px;padding:0;line-height:1;transition:color .2s}
+.kw-remove:hover{color:var(--red)}
+
+/* Connect screen */
+.connect-screen{max-width:480px;margin:60px auto;text-align:center}
+.connect-icon{font-size:56px;margin-bottom:20px}
+.connect-screen h2{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;margin-bottom:10px}
+.connect-screen p{color:var(--dim);font-size:15px;line-height:1.6;margin-bottom:28px}
+.connect-btn{display:inline-flex;align-items:center;gap:12px;background:white;color:#1a1a2e;border:none;border-radius:12px;padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:transform .2s,box-shadow .2s}
+.connect-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(255,255,255,.15)}
+.connect-btn img{width:22px;height:22px}
+.steps-preview{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:28px;text-align:left}
+.steps-preview h4{font-size:13px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+.step-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.step-row:last-child{border-bottom:none}
+.step-num{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--cyan));color:#080b12;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* Setup steps */
+.setup-progress{display:flex;gap:0;margin-bottom:28px}
+.setup-step{flex:1;text-align:center;position:relative}
+.setup-step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--dim);margin:0 auto 6px;transition:all .3s;background:var(--surface)}
+.setup-step.done .setup-step-dot{background:var(--green);border-color:var(--green);color:#080b12}
+.setup-step.active .setup-step-dot{border-color:var(--green);color:var(--green);box-shadow:0 0 0 3px rgba(61,220,132,.15)}
+.setup-step-label{font-size:11px;color:var(--dim)}
+.setup-step.active .setup-step-label{color:var(--green)}
+.setup-step-line{position:absolute;top:14px;left:50%;width:100%;height:2px;background:var(--border);z-index:-1}
+.setup-step.done .setup-step-line{background:var(--green)}
+.setup-step:last-child .setup-step-line{display:none}
+
+/* Alert */
+.alert{padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.alert-green{background:rgba(61,220,132,.08);border:1px solid rgba(61,220,132,.2);color:var(--green)}
+.alert-amber{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:var(--amber)}
+.alert-red{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);color:var(--red)}
+
+/* Spinner */
+.spinner{width:14px;height:14px;border:2px solid rgba(8,11,18,.3);border-top-color:#080b12;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+.spinner-dark{border:2px solid var(--border2);border-top-color:var(--green)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Schedule visual */
+.schedule-preview{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.day-box{aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:600;gap:2px;border:1px solid var(--border)}
+.day-box.post-day{background:rgba(61,220,132,.12);border-color:rgba(61,220,132,.3);color:var(--green)}
+.day-box .day-name{font-size:9px;text-transform:uppercase;letter-spacing:.04em}
+.day-box .day-dot{width:6px;height:6px;border-radius:50%;background:var(--green);margin-top:2px}
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px;color:var(--dim)}
+.empty-state .empty-icon{font-size:36px;margin-bottom:12px}
+.empty-state p{font-size:14px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px 18px;font-size:13px;font-weight:500;z-index:1000;transform:translateY(80px);opacity:0;transition:all .3s;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{border-color:rgba(61,220,132,.3);color:var(--green)}
+.toast.error{border-color:rgba(248,113,113,.3);color:var(--red)}
+
+@media(max-width:768px){
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:row}
+  main{margin-left:0;padding:20px}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>GBP Autopilot</h1>
+    <small>Local SEO Automation</small>
+  </div>
+
+  <div class="sidebar-status" id="sidebarStatus">
+    <div class="status-row">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText" style="font-size:12px;font-weight:600">Checking...</span>
+    </div>
+    <div class="status-label" id="statusLabel"></div>
+  </div>
+
+  <nav>
+    <div class="nav-section">Overview</div>
+    <button class="nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+      <span class="nav-icon">◈</span> Dashboard
+    </button>
+
+    <div class="nav-section">Setup</div>
+    <button class="nav-item" data-page="setup" onclick="showPage('setup',this)">
+      <span class="nav-icon">⚙</span> Configuration
+    </button>
+    <button class="nav-item" data-page="keywords" onclick="showPage('keywords',this)">
+      <span class="nav-icon">🔑</span> Keywords
+    </button>
+    <button class="nav-item" data-page="content" onclick="showPage('content',this)">
+      <span class="nav-icon">✍</span> Content Style
+    </button>
+
+    <div class="nav-section">Automation</div>
+    <button class="nav-item" data-page="queue" onclick="showPage('queue',this)">
+      <span class="nav-icon">📋</span> Post Queue
+    </button>
+    <button class="nav-item" data-page="history" onclick="showPage('history',this)">
+      <span class="nav-icon">📊</span> Post History
+    </button>
+
+    <div class="nav-section">Client</div>
+    <button class="nav-item" onclick="resetClient()" style="color:var(--amber)">
+      <span class="nav-icon">🔄</span> New Client
+    </button>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div class="user-chip" id="userChip" style="display:none">
+      <div class="user-avatar" id="userAvatar">G</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">—</div>
+        <div class="user-email" id="userEmail">—</div>
+      </div>
+      <button class="disconnect-btn" onclick="disconnect()" title="Disconnect">✕</button>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <h2>Dashboard</h2>
+      <p>Your automation overview — posts generating and publishing on autopilot</p>
+    </div>
+
+    <!-- Connect screen shown when not authed -->
+    <div id="connectScreen" style="display:none">
+      <div class="connect-screen">
+        <div class="connect-icon">🚀</div>
+        <h2>Connect Your Google Business Profile</h2>
+        <p>Sign in with Google to link your GBP account. The tool will then auto-generate local SEO posts and publish them on Monday, Wednesday & Friday.</p>
+        <button class="connect-btn" onclick="connectGoogle()">
+          <img src="https://www.google.com/favicon.ico" alt="" />
+          Connect with Google
+        </button>
+        <div class="steps-preview">
+          <h4>How it works</h4>
+          <div class="step-row"><div class="step-num">1</div> Connect your Google account & select GBP location</div>
+          <div class="step-row"><div class="step-num">2</div> Describe your business & content style</div>
+          <div class="step-row"><div class="step-num">3</div> AI generates local keywords & blog posts</div>
+          <div class="step-row"><div class="step-num">4</div> Posts auto-publish Mon/Wed/Fri — you do nothing</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard when authed -->
+    <div id="dashboardContent" style="display:none">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-val green" id="statPosted">0</div>
+          <div class="stat-label">Posts Published</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val amber" id="statPending">0</div>
+          <div class="stat-label">Queued Posts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val cyan" id="statKeywords">0</div>
+          <div class="stat-label">Keywords Loaded</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statFailed">0</div>
+          <div class="stat-label">Failed Posts</div>
+        </div>
+      </div>
+
+      <!-- Autopilot status card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Autopilot Status</div>
+          <span class="card-badge badge-green" id="autopilotBadge">Active</span>
+        </div>
+        <div id="autopilotStatus" style="font-size:14px;color:var(--dim);margin-bottom:16px"></div>
+        <div style="font-size:13px;font-weight:600;color:var(--dim);margin-bottom:10px">Posting Schedule (Mon / Wed / Fri at 9:00 AM)</div>
+        <div class="schedule-preview">
+          <div class="day-box post-day"><span class="day-name">Mon</span><span class="day-dot"></span></div>
+          <div class="day-box"><span class="day-name">Tue</span></div>
+          <div class="day-box post-day"><span class="day-name">Wed</span><span class="day-dot"></span></div>
+          <div class="day-box"><span class="day-name">Thu</span></div>
+          <div class="day-box post-day"><span class="day-name">Fri</span><span class="day-dot"></span></div>
+          <div class="day-box"><span class="day-name">Sat</span></div>
+          <div class="day-box"><span class="day-name">Sun</span></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="generatePost()"><span id="genSpinner"></span>✦ Generate Post Now</button>
+          <button class="btn btn-amber" onclick="publishNow()">▶ Publish Next Post Now</button>
+        </div>
+      </div>
+
+      <!-- Recent posts -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Posts</div>
+          <button class="btn btn-secondary" style="padding:6px 14px;font-size:12px" onclick="showPage('history',document.querySelector('[data-page=history]'))">View All</button>
+        </div>
+        <div class="post-list" id="recentPosts">
+          <div class="empty-state"><div class="empty-icon">📭</div><p>No posts yet. Generate your first post above.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETUP / CONFIGURATION -->
+  <div class="page" id="page-setup">
+    <div class="page-header">
+      <h2>Configuration</h2>
+      <p>Set up your client's business details and GBP location</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">GBP Location</div><span class="card-badge badge-cyan" id="locationBadge">Not selected</span></div>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px">Select which Google Business Profile location to post to.</p>
+
+      <div id="locationPicker">
+        <button class="btn btn-secondary" onclick="loadAccounts()">Load My GBP Accounts</button>
+      </div>
+      <div id="locationSelected" style="display:none">
+        <div class="alert alert-green">
+          <span>✓</span>
+          <span id="selectedLocationName">Location selected</span>
+        </div>
+        <button class="btn btn-secondary" onclick="document.getElementById('locationSelected').style.display='none';document.getElementById('locationPicker').style.display='block'">Change Location</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Business Information</div></div>
+      <div class="form-grid">
+        <label>Business Name *<input id="biz-name" placeholder="e.g. Apex Tech Academy" /></label>
+        <label>Business Category *<input id="biz-category" placeholder="e.g. Tech Education, Restaurant, Salon" /></label>
+        <label>City / Location *<input id="biz-location" placeholder="e.g. Lagos Island, Lagos" /></label>
+        <label>Website URL<input id="biz-website" placeholder="https://yourwebsite.com" /></label>
+        <label class="form-full">Services Offered (comma separated) *
+          <textarea id="biz-services" placeholder="Web development training, Data analytics course, Digital marketing class..."></textarea>
+        </label>
+        <label class="form-full">Target Audience
+          <input id="biz-audience" placeholder="e.g. Young professionals, fresh graduates, business owners in Lagos" />
+        </label>
+        <label class="form-full">Unique Selling Points
+          <input id="biz-usp" placeholder="e.g. Hands-on training, job placement support, pay in installments" />
+        </label>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveBusiness()">Save Business Info</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYWORDS -->
+  <div class="page" id="page-keywords">
+    <div class="page-header">
+      <h2>Keywords</h2>
+      <p>Local SEO keywords that drive each blog post — AI-generated and fully editable</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Keyword Bank</div>
+        <span class="card-badge badge-cyan" id="kwCountBadge">0 keywords</span>
+      </div>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px">Each post targets one keyword from this list. Keywords with the lowest usage are always picked first to keep content fresh.</p>
+
+      <div class="btn-row" style="margin-top:0;margin-bottom:16px">
+        <button class="btn btn-primary" onclick="generateKeywords()"><span id="kwSpinner"></span>✦ AI Generate Keywords</button>
+        <button class="btn btn-danger" onclick="clearKeywords()">🗑 Clear All</button>
+      </div>
+
+      <div id="kwList" class="kw-grid">
+        <div class="empty-state" style="width:100%"><div class="empty-icon">🔑</div><p>No keywords yet. Click "AI Generate Keywords" to get started.</p></div>
+      </div>
+
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+        <label style="margin-bottom:10px">Add Keywords Manually
+          <input id="manualKw" placeholder="Type keyword and press Enter" onkeydown="if(event.key==='Enter')addManualKw()" />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENT STYLE -->
+  <div class="page" id="page-content">
+    <div class="page-header">
+      <h2>Content Style</h2>
+      <p>Describe exactly how you want the AI to write every GBP post</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Content Guidelines</div></div>
+      <div class="form-grid">
+        <label>Writing Tone
+          <select id="content-tone">
+            <option>Professional & Authoritative</option>
+            <option>Friendly & Conversational</option>
+            <option>Exciting & Energetic</option>
+            <option>Informative & Educational</option>
+            <option>Persuasive & Sales-driven</option>
+          </select>
+        </label>
+        <label>Post Word Count
+          <select id="content-words">
+            <option value="100">Short (~100 words)</option>
+            <option value="150" selected>Medium (~150 words)</option>
+            <option value="200">Standard (~200 words)</option>
+            <option value="300">Long (~300 words)</option>
+          </select>
+        </label>
+        <label class="form-full">Your Content Style Guidelines *
+          <textarea id="content-guidelines" rows="6"
+            placeholder="Describe exactly how the posts should be written. For example:&#10;&#10;- Always start with a bold hook about the problem we solve&#10;- Mention our location (Lagos) naturally within the first 2 sentences&#10;- Include 1-2 specific course names or services in each post&#10;- End with an urgency-driven call to action like 'Seats are limited'&#10;- Never use jargon — keep it simple and relatable to Nigerian youth&#10;- Occasionally use social proof phrases like 'Join 500+ graduates who...'"
+          ></textarea>
+          <span class="form-hint">Be as specific as possible. This is what shapes every single post the AI writes.</span>
+        </label>
+        <div class="form-full toggle-row">
+          <div class="toggle-info">
+            <strong>Include Call-to-Action Button</strong>
+            <small>Adds a "Learn More" or "Book Now" button linking to your website</small>
+          </div>
+          <button class="toggle on" id="ctaToggle" onclick="this.classList.toggle('on')"></button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveContentStyle()">Save Content Style</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Preview a Post</div><span class="card-badge badge-amber">Test AI Output</span></div>
+      <p style="font-size:13px;color:var(--dim);margin-bottom:16px">Generate a sample post to see how your guidelines affect the output before going live.</p>
+      <button class="btn btn-secondary" onclick="previewPost()"><span id="previewSpinner"></span>✦ Generate Sample Post</button>
+      <div id="postPreview" style="display:none;margin-top:20px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:20px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:10px">Sample GBP Post</div>
+        <h4 id="previewTitle" style="font-family:'Syne',sans-serif;font-size:16px;margin-bottom:10px;line-height:1.3"></h4>
+        <p id="previewBody" style="font-size:14px;color:#c0ccd8;line-height:1.7;margin-bottom:14px"></p>
+        <button id="previewCta" style="background:var(--green);color:#080b12;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:default;font-family:'DM Sans',sans-serif"></button>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--dim);margin-bottom:6px;font-weight:600">IMAGE PROMPT:</div>
+          <div id="previewImagePrompt" style="font-size:12px;color:var(--dimmer);font-style:italic;line-height:1.6"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST QUEUE -->
+  <div class="page" id="page-queue">
+    <div class="page-header">
+      <h2>Post Queue</h2>
+      <p>Upcoming posts ready to publish automatically</p>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Pending Posts</div>
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:12px" onclick="generatePost()">+ Generate Post</button>
+      </div>
+      <div class="post-list" id="queueList">
+        <div class="empty-state"><div class="empty-icon">📭</div><p>No posts in queue</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="page-history">
+    <div class="page-header">
+      <h2>Post History</h2>
+      <p>All posts generated and published by the automation</p>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">All Posts</div></div>
+      <div class="post-list" id="historyList">
+        <div class="empty-state"><div class="empty-icon">📊</div><p>No posts yet</p></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+let appStatus = {};
+
+// ── Navigation ──
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  if (name === 'queue') loadQueue();
+  if (name === 'history') loadHistory();
+  if (name === 'keywords') loadKeywords();
+}
+
+// ── Toast ──
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── API helpers ──
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+// ── Init & Status ──
+async function loadStatus() {
+  appStatus = await api('GET', '/api/status');
+  updateSidebar();
+  updateDashboard();
+}
+
+function updateSidebar() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  const label = document.getElementById('statusLabel');
+
+  if (!appStatus.authenticated) {
+    dot.className = 'status-dot warn';
+    text.textContent = 'Not Connected';
+    label.textContent = 'Connect Google account';
+  } else if (!appStatus.setupComplete) {
+    dot.className = 'status-dot warn';
+    text.textContent = 'Setup Needed';
+    label.textContent = appStatus.user?.email || '';
+  } else {
+    dot.className = 'status-dot on';
+    text.textContent = 'Autopilot Active';
+    label.textContent = appStatus.locationName || '';
+  }
+
+  const chip = document.getElementById('userChip');
+  if (appStatus.user) {
+    chip.style.display = 'flex';
+    document.getElementById('userName').textContent = appStatus.user.name || 'Connected';
+    document.getElementById('userEmail').textContent = appStatus.user.email || '';
+    document.getElementById('userAvatar').textContent = (appStatus.user.name || 'G')[0].toUpperCase();
+  }
+}
+
+function updateDashboard() {
+  const connect = document.getElementById('connectScreen');
+  const content = document.getElementById('dashboardContent');
+
+  if (!appStatus.authenticated) {
+    connect.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+  connect.style.display = 'none';
+  content.style.display = 'block';
+
+  // Stats
+  document.getElementById('statPosted').textContent = appStatus.stats?.posted || 0;
+  document.getElementById('statPending').textContent = appStatus.stats?.pending || 0;
+  document.getElementById('statKeywords').textContent = appStatus.kwCount || 0;
+  const failed = appStatus.stats?.failed || 0;
+  const failedEl = document.getElementById('statFailed');
+  failedEl.textContent = failed;
+  failedEl.className = 'stat-val ' + (failed > 0 ? 'red' : '');
+
+  // Autopilot status
+  const badge = document.getElementById('autopilotBadge');
+  const statusMsg = document.getElementById('autopilotStatus');
+  if (!appStatus.businessConfigured) {
+    badge.textContent = 'Setup Required';
+    badge.className = 'card-badge badge-amber';
+    statusMsg.textContent = 'Please complete setup: fill in business info and content style.';
+  } else if (!appStatus.locationSelected) {
+    badge.textContent = 'No Location';
+    badge.className = 'card-badge badge-amber';
+    statusMsg.textContent = 'Please select a GBP location in Configuration.';
+  } else if (appStatus.kwCount === 0) {
+    badge.textContent = 'No Keywords';
+    badge.className = 'card-badge badge-amber';
+    statusMsg.textContent = 'Generate keywords in the Keywords section to activate automation.';
+  } else {
+    badge.textContent = 'Active';
+    badge.className = 'card-badge badge-green';
+    statusMsg.innerHTML = `Posting to <strong>${appStatus.locationName || 'selected location'}</strong> every Monday, Wednesday & Friday at 9:00 AM. Next post will be generated automatically.`;
+  }
+
+  // Load recent posts
+  loadRecentPosts();
+
+  // Pre-fill setup forms
+  if (appStatus.business) {
+    const b = appStatus.business;
+    document.getElementById('biz-name').value = b.name || '';
+    document.getElementById('biz-category').value = b.category || '';
+    document.getElementById('biz-location').value = b.location || '';
+    document.getElementById('biz-website').value = b.website || '';
+    document.getElementById('biz-services').value = b.services || '';
+    document.getElementById('biz-audience').value = b.audience || '';
+    document.getElementById('biz-usp').value = b.usp || '';
+  }
+
+  if (appStatus.locationSelected) {
+    document.getElementById('locationBadge').textContent = '✓ Selected';
+    document.getElementById('locationBadge').className = 'card-badge badge-green';
+    document.getElementById('selectedLocationName').textContent = '✓ ' + (appStatus.locationName || 'Location selected');
+    document.getElementById('locationSelected').style.display = 'block';
+    document.getElementById('locationPicker').style.display = 'none';
+  }
+}
+
+async function loadRecentPosts() {
+  const data = await api('GET', '/api/posts');
+  const container = document.getElementById('recentPosts');
+  renderPostList(container, data.posts?.slice(0, 5));
+}
+
+async function loadQueue() {
+  const data = await api('GET', '/api/posts/pending');
+  renderPostList(document.getElementById('queueList'), data.posts);
+}
+
+async function loadHistory() {
+  const data = await api('GET', '/api/posts');
+  renderPostList(document.getElementById('historyList'), data.posts);
+}
+
+function renderPostList(container, posts) {
+  if (!posts || posts.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No posts here yet.</p></div>';
+    return;
+  }
+  container.innerHTML = posts.map(p => `
+    <div class="post-card">
+      <div class="post-card-top">
+        <div class="post-card-title">${escHtml(p.title || 'Untitled Post')}</div>
+        <span class="post-status status-${p.status}">${p.status}</span>
+      </div>
+      <div class="post-body-preview">${escHtml(p.body || '')}</div>
+      <div class="post-meta">
+        <span>📅 ${p.scheduled_for || p.posted_at || p.created_at || ''}</span>
+        <span><span class="kw-chip">${escHtml(p.keyword || '')}</span></span>
+        ${p.error_msg ? `<span style="color:var(--red)">⚠ ${escHtml(p.error_msg)}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Auth ──
+function connectGoogle() { window.location.href = '/auth/google'; }
+
+async function disconnect() {
+  if (!confirm('Disconnect Google account?')) return;
+  await api('POST', '/auth/disconnect');
+  location.reload();
+}
+
+// ── Business Setup ──
+async function saveBusiness() {
+  const body = {
+    name: document.getElementById('biz-name').value.trim(),
+    category: document.getElementById('biz-category').value.trim(),
+    location: document.getElementById('biz-location').value.trim(),
+    services: document.getElementById('biz-services').value.trim(),
+    audience: document.getElementById('biz-audience').value.trim(),
+    usp: document.getElementById('biz-usp').value.trim(),
+    website: document.getElementById('biz-website').value.trim(),
+  };
+  if (!body.name || !body.category || !body.location) return toast('Please fill in name, category and location', 'error');
+  const res = await api('POST', '/api/business', body);
+  if (res.ok) { toast('Business info saved!'); loadStatus(); }
+}
+
+// ── Location Picker ──
+async function loadAccounts() {
+  if (!appStatus.authenticated) return toast('Connect Google account first', 'error');
+  const picker = document.getElementById('locationPicker');
+  picker.innerHTML = '<div class="spinner spinner-dark" style="margin:8px"></div>';
+  const data = await api('GET', '/api/accounts');
+
+  if (!data.accounts?.length) {
+    picker.innerHTML = '<div class="alert alert-amber">⚠ No GBP accounts found. Make sure you have access to a Google Business Profile.</div>';
+    return;
+  }
+
+  picker.innerHTML = data.accounts.map(a => `
+    <button class="btn btn-secondary" style="margin:4px;font-size:12px" onclick="loadLocations('${escAttr(a.name)}','${escAttr(a.accountName || a.name)}')">
+      ${escHtml(a.accountName || a.name)}
+    </button>
+  `).join('');
+}
+
+async function loadLocations(accountName, displayName) {
+  const picker = document.getElementById('locationPicker');
+  picker.innerHTML = '<div class="spinner spinner-dark" style="margin:8px"></div>';
+  const data = await api('GET', '/api/locations/' + encodeURIComponent(accountName));
+
+  if (!data.locations?.length) {
+    picker.innerHTML = '<div class="alert alert-amber">⚠ No locations found in this account.</div><button class="btn btn-secondary" onclick="loadAccounts()">← Back</button>';
+    return;
+  }
+
+  picker.innerHTML = '<button class="btn btn-secondary" style="margin-bottom:12px;font-size:12px" onclick="loadAccounts()">← Back</button>' +
+    data.locations.map(loc => `
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;cursor:pointer;transition:border-color .2s"
+           onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'"
+           onclick="selectLocation('${escAttr(loc.name)}','${escAttr(loc.title)}')">
+        <div style="font-weight:600;font-size:14px">${escHtml(loc.title)}</div>
+        <div style="font-size:12px;color:var(--dim);margin-top:4px">${escHtml(loc.storefrontAddress?.addressLines?.[0] || '')}</div>
+      </div>
+    `).join('');
+}
+
+async function selectLocation(name, display) {
+  await api('POST', '/api/location', { locationName: name, displayName: display });
+  document.getElementById('selectedLocationName').textContent = '✓ ' + display;
+  document.getElementById('locationSelected').style.display = 'block';
+  document.getElementById('locationPicker').style.display = 'none';
+  document.getElementById('locationBadge').textContent = '✓ Selected';
+  document.getElementById('locationBadge').className = 'card-badge badge-green';
+  toast('Location saved: ' + display);
+  loadStatus();
+}
+
+// ── Content Style ──
+async function saveContentStyle() {
+  const body = {
+    tone: document.getElementById('content-tone').value,
+    wordCount: document.getElementById('content-words').value,
+    guidelines: document.getElementById('content-guidelines').value.trim(),
+    includeCta: document.getElementById('ctaToggle').classList.contains('on'),
+  };
+  if (!body.guidelines) return toast('Please describe your content style guidelines', 'error');
+  const res = await api('POST', '/api/content-style', body);
+  if (res.ok) { toast('Content style saved!'); loadStatus(); }
+}
+
+async function previewPost() {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  document.getElementById('previewSpinner').innerHTML = '<span class="spinner" style="margin-right:6px"></span>';
+
+  // Save current style first silently
+  await api('POST', '/api/content-style', {
+    tone: document.getElementById('content-tone').value,
+    wordCount: document.getElementById('content-words').value,
+    guidelines: document.getElementById('content-guidelines').value,
+    includeCta: document.getElementById('ctaToggle').classList.contains('on'),
+  });
+
+  const res = await api('POST', '/api/posts/generate');
+  document.getElementById('previewSpinner').innerHTML = '';
+  btn.disabled = false;
+
+  if (res.error) return toast(res.error, 'error');
+  if (res.post) {
+    document.getElementById('postPreview').style.display = 'block';
+    document.getElementById('previewTitle').textContent = res.post.title || '';
+    document.getElementById('previewBody').textContent = res.post.body || '';
+    document.getElementById('previewCta').textContent = res.post.cta_text || 'Learn More';
+    document.getElementById('previewImagePrompt').textContent = res.post.image_prompt || '';
+    toast('Sample post generated!');
+    loadStatus();
+  }
+}
+
+// ── Keywords ──
+async function generateKeywords() {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  document.getElementById('kwSpinner').innerHTML = '<span class="spinner" style="margin-right:6px"></span>';
+  const res = await api('POST', '/api/keywords/generate');
+  document.getElementById('kwSpinner').innerHTML = '';
+  btn.disabled = false;
+  if (res.error) return toast(res.error, 'error');
+  toast(`${res.count} keywords generated!`);
+  loadKeywords();
+  loadStatus();
+}
+
+async function loadKeywords() {
+  const data = await api('GET', '/api/keywords');
+  const kws = data.keywords || [];
+  document.getElementById('kwCountBadge').textContent = kws.length + ' keywords';
+  const container = document.getElementById('kwList');
+  if (!kws.length) {
+    container.innerHTML = '<div class="empty-state" style="width:100%"><div class="empty-icon">🔑</div><p>No keywords yet.</p></div>';
+    return;
+  }
+  container.innerHTML = kws.map(k => `
+    <div class="kw-tag">
+      ${escHtml(k.keyword)}
+      <span class="kw-count">${k.used_count}×</span>
+    </div>
+  `).join('');
+}
+
+async function addManualKw() {
+  const input = document.getElementById('manualKw');
+  const val = input.value.trim();
+  if (!val) return;
+  await api('POST', '/api/keywords/add', { keywords: [val] });
+  input.value = '';
+  loadKeywords();
+  loadStatus();
+}
+
+async function clearKeywords() {
+  if (!confirm('Clear all keywords?')) return;
+  await api('DELETE', '/api/keywords');
+  loadKeywords();
+  loadStatus();
+  toast('Keywords cleared');
+}
+
+// ── Posts ──
+async function generatePost() {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  document.getElementById('genSpinner').innerHTML = '<span class="spinner" style="margin-right:6px"></span>';
+  const res = await api('POST', '/api/posts/generate');
+  document.getElementById('genSpinner').innerHTML = '';
+  btn.disabled = false;
+  if (res.error) return toast(res.error, 'error');
+  toast('Post generated and queued!');
+  loadStatus();
+  loadRecentPosts();
+}
+
+async function publishNow() {
+  if (!confirm('Publish the next queued post to GBP right now?')) return;
+  const res = await api('POST', '/api/posts/publish-now');
+  if (res.error) return toast(res.error, 'error');
+  toast('Post published to Google Business Profile!');
+  loadStatus();
+  loadRecentPosts();
+}
+
+// ── Client Reset ──
+async function resetClient() {
+  if (!confirm('Reset all data for a new client? This will clear business info, keywords, and all posts. Your Google connection stays active.')) return;
+  await api('POST', '/api/reset');
+  toast('Ready for new client!');
+  loadStatus();
+}
+
+// ── Utils ──
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+  return String(str || '').replace(/'/g, "\\'");
+}
+
+// ── Boot ──
+window.addEventListener('DOMContentLoaded', () => {
+  loadStatus();
+  setInterval(loadStatus, 30000); // refresh every 30s
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('connected')) { toast('Google account connected!'); history.replaceState({}, '', '/'); }
+  if (params.get('error')) { toast(params.get('error'), 'error'); history.replaceState({}, '', '/'); }
+});
+</script>
+</body>
+</html>
